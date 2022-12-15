@@ -131,6 +131,7 @@ typedef struct
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define ARRAY_LENGTH(arr) (sizeof(arr) / sizeof((arr)[0]))
+typedef unsigned char byte;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -139,13 +140,18 @@ int digit = 0;
 int current_level = 0;
 int destination_level = 0;
 int max_level = 5;
+int warn_buzzer = 0;
 int last_time_btn_1 = 0, last_time_btn_2 = 0, last_time_btn_3 = 0, last_time_btn_4 = 0;
 int button4_down = 0;
-
-int levels_queue[99];
+uint8_t going_up = 1;		// when elevator going up
+int animation_up = 0;
+int going_down = 0;		// when elevator going down
+int stopped = 0;		// when elevator is stopped
+int levels_queue[] = {};
 int elavator_started = 0;
+int tim4_count = 0;
+int tim4_lcd_counter = 0;
 
-int tim4_count = 1;
 
 extern TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef *pwm_timer = &htim3;	// Point to PWM Timer configured in CubeMX
@@ -254,6 +260,7 @@ const Tone greensleeves[] = {
 
 };
 
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -341,7 +348,6 @@ void Update_Melody()
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
-extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -433,7 +439,6 @@ void SVC_Handler(void)
 
   /* USER CODE END SVCall_IRQn 0 */
   /* USER CODE BEGIN SVCall_IRQn 1 */
-
   /* USER CODE END SVCall_IRQn 1 */
 }
 
@@ -497,66 +502,66 @@ void EXTI9_5_IRQHandler(void)
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_8);
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_9);
   /* USER CODE BEGIN EXTI9_5_IRQn 1 */
-
   if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6)) {
-	  if(HAL_GetTick() - last_time_btn_1 > 300) {
-		  if(destination_level > 0)
-		  		  destination_level -= 1;
-		  last_time_btn_1 = HAL_GetTick();
-	  }
-  }
+  	  if(HAL_GetTick() - last_time_btn_1 > 300) {
+  		  if(destination_level > 0)
+  		  		  destination_level -= 1;
+  		  last_time_btn_1 = HAL_GetTick();
+  	  }
+    }
 
-  if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_7)) {
-	  if(HAL_GetTick() - last_time_btn_2 > 300) {
-		  if(destination_level < max_level)
-			  destination_level += 1;
-		  last_time_btn_2 = HAL_GetTick();
-	  }
-  }
+    if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_7)) {
+  	  if(HAL_GetTick() - last_time_btn_2 > 300) {
+  		  if(destination_level < max_level)
+  			  destination_level += 1;
+  		  last_time_btn_2 = HAL_GetTick();
+  	  }
+    }
 
-  if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8)) {
-	  if(HAL_GetTick() - last_time_btn_3 > 300) {
+    if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8)) {
+  	  if(HAL_GetTick() - last_time_btn_3 > 300) {
 
-//		  for starting music
-//		  PWM_Start();
-//		  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
+  //		  for starting music
+  //		  PWM_Start();
+  //		  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
 
-		  int duplicate = 0;
-		  for(int i = 0; i < ARRAY_LENGTH(levels_queue); i++) {
-			  if(levels_queue[i] == destination_level) {
-				  duplicate = 1;
-				  break;
-			  }
-		  }
-
-		  if(!duplicate && destination_level != current_level)
-			  levels_queue[ARRAY_LENGTH(levels_queue)] = destination_level;
-
-
-		  last_time_btn_3 = HAL_GetTick();
-	  }
-  }
-
-  if (button4_down) button4_down = 0;
-
-  if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9)) {
-	  button4_down = 1;
-  }
-
-//  if (button4_down) button4_down = 0;
-
-  if(button4_down == 1) {
-  			  Change_Melody(NULL, NULL);
-  			  HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
-  			  pwm_timer->Instance->PSC = 0;
-  			  pwm_timer->Instance->ARR = 9999;
-  			  HAL_TIM_Base_Start_IT(&htim4);
-  			  __HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 2500);
-//  			  button4_down = 0;
-  		  } else {
-  			  __HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 0);
-  			  HAL_TIM_Base_Stop_IT(&htim4);
+  		  int duplicate = 0;
+  		  for(int i = 0; i < ARRAY_LENGTH(levels_queue); i++) {
+  			  if(levels_queue[i] == destination_level) {
+  				  duplicate = 1;
+  				  break;
+  			  }
   		  }
+
+  		  if(!duplicate && destination_level != current_level)
+  			  levels_queue[ARRAY_LENGTH(levels_queue)] = destination_level;
+
+
+  		  last_time_btn_3 = HAL_GetTick();
+  	  }
+    }
+
+    if (button4_down) button4_down = 0;
+
+    if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9)) {
+  	  button4_down = 1;
+    }
+
+  //  if (button4_down) button4_down = 0;
+
+    if(button4_down == 1) {
+    	Change_Melody(NULL, NULL);
+    	HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
+    	pwm_timer->Instance->PSC = 0;
+    	pwm_timer->Instance->ARR = 9999;
+    	warn_buzzer = 1;
+//    			  HAL_TIM_Base_Start_IT(&htim4);
+    	__HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 2500);
+  //  			  button4_down = 0;
+    } else {
+    	warn_buzzer = 0;
+    	__HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 0);
+    }
   /* USER CODE END EXTI9_5_IRQn 1 */
 }
 
@@ -571,15 +576,14 @@ void TIM2_IRQHandler(void)
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
   if(digit == 0) {
-	  setSeg0On();
-	  decodeNumber(destination_level);
-	  digit++;
-  } else {
-	  setSeg1On();
-	  decodeNumber(current_level);
-	  digit = 0;
-  }
-
+  	  setSeg0On();
+  	  decodeNumber(destination_level);
+  	  digit++;
+    } else {
+  	  setSeg1On();
+  	  decodeNumber(ARRAY_LENGTH(levels_queue));
+  	  digit = 0;
+    }
   /* USER CODE END TIM2_IRQn 1 */
 }
 
@@ -593,7 +597,6 @@ void TIM3_IRQHandler(void)
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
   /* USER CODE BEGIN TIM3_IRQn 1 */
-
   /* USER CODE END TIM3_IRQn 1 */
 }
 
@@ -607,31 +610,36 @@ void TIM4_IRQHandler(void)
   /* USER CODE END TIM4_IRQn 0 */
   HAL_TIM_IRQHandler(&htim4);
   /* USER CODE BEGIN TIM4_IRQn 1 */
-  if(tim4_count <= 5) {
-	  PWM_Start();
-	  tim4_count += 1;
-  } else {
-	  HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
-//	  tim4_count = 0;
-	  tim4_count++;
-	  if (tim4_count == 11)
-		  tim4_count = 1;
+  if (warn_buzzer) {
+  	  if(tim4_count <= 5) {
+  		  PWM_Start();
+  		  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 50);
+  		  tim4_count += 1;
+  	  } else {
+//  	  HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
+  //	  tim4_count = 0;
+  		  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
+  		  tim4_count++;
+  		  if (tim4_count == 11)
+  			  tim4_count = 1;
+  	  }
   }
+
+  tim4_lcd_counter++;
+
+  if (tim4_lcd_counter == 10) {
+  	  if (going_up) {
+  		  home();
+  		  print("We are Going Up ");
+  		  setCursor(col, row)
+  		  write(animation_up++);
+  		  if (animation_up == 5)
+  			  animation_up = 0;
+  	  }
+  	  tim4_lcd_counter = 0;
+  }
+
   /* USER CODE END TIM4_IRQn 1 */
-}
-
-/**
-  * @brief This function handles USART1 global interrupt / USART1 wake-up interrupt through EXTI line 25.
-  */
-void USART1_IRQHandler(void)
-{
-  /* USER CODE BEGIN USART1_IRQn 0 */
-
-  /* USER CODE END USART1_IRQn 0 */
-  HAL_UART_IRQHandler(&huart1);
-  /* USER CODE BEGIN USART1_IRQn 1 */
-
-  /* USER CODE END USART1_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */
