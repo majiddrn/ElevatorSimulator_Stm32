@@ -140,8 +140,9 @@ int current_level = 0;
 int destination_level = 0;
 int max_level = 5;
 int last_time_btn_1 = 0, last_time_btn_2 = 0, last_time_btn_3 = 0, last_time_btn_4 = 0;
+int button4_down = 0;
 
-int levels_queue[] = {};
+unsigned char levels_queue[99];
 int elavator_started = 0;
 
 int tim4_count = 0;
@@ -497,7 +498,6 @@ void EXTI9_5_IRQHandler(void)
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_9);
   /* USER CODE BEGIN EXTI9_5_IRQn 1 */
 
-  int button4_down = 0;
   if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6)) {
 	  if(HAL_GetTick() - last_time_btn_1 > 300) {
 		  if(destination_level > 0)
@@ -517,25 +517,36 @@ void EXTI9_5_IRQHandler(void)
   if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8)) {
 	  if(HAL_GetTick() - last_time_btn_3 > 300) {
 
-		  PWM_Start();
-		  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
+//		  for starting music
+//		  PWM_Start();
+//		  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
+
+		  if(levels_queue)
 
 		  last_time_btn_3 = HAL_GetTick();
 	  }
   }
 
-  if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9)) {
-	  if(HAL_GetTick() - last_time_btn_4 > 300) {
+  if (button4_down) button4_down = 0;
 
-		  Change_Melody(NULL, NULL);
-		  HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
-		  pwm_timer->Instance->PSC = 0;
-		  pwm_timer->Instance->ARR = 9999;
-		  HAL_TIM_Base_Start_IT(&htim4);
-	      __HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 2500);
-		  last_time_btn_4 = HAL_GetTick();
-	  }
+  if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9)) {
+	  button4_down = 1;
   }
+
+//  if (button4_down) button4_down = 0;
+
+  if(button4_down == 1) {
+  			  Change_Melody(NULL, NULL);
+  			  HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
+  			  pwm_timer->Instance->PSC = 0;
+  			  pwm_timer->Instance->ARR = 9999;
+  			  HAL_TIM_Base_Start_IT(&htim4);
+  			  __HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 2500);
+//  			  button4_down = 0;
+  		  } else {
+  			  __HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 0);
+  			  HAL_TIM_Base_Stop_IT(&htim4);
+  		  }
   /* USER CODE END EXTI9_5_IRQn 1 */
 }
 
@@ -555,7 +566,7 @@ void TIM2_IRQHandler(void)
 	  digit++;
   } else {
 	  setSeg1On();
-	  decodeNumber(ARRAY_LENGTH(levels_queue));
+	  decodeNumber(current_level);
 	  digit = 0;
   }
 
