@@ -90,6 +90,64 @@ byte arrow_up_4[] = {
   0x0,
   0x0
 };
+
+byte arrow_down_0[] = {
+  0x00,
+  0x00,
+  0x00,
+  0x11,
+  0x1B,
+  0x0E,
+  0x04,
+  0x00
+};
+
+byte arrow_down_1[] = {
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x11,
+  0x1B,
+  0x0E,
+  0x04
+};
+
+byte arrow_down_2[] = {
+  0x00,
+  0x00,
+  0x00,
+  0x04,
+  0x00,
+  0x11,
+  0x1B,
+  0x0E
+};
+
+byte arrow_down_3[] = {
+  0x00,
+  0x00,
+  0x00,
+  0x0E,
+  0x04,
+  0x00,
+  0x11,
+  0x1B
+};
+
+byte arrow_down_4[] = {
+  0x00,
+  0x00,
+  0x00,
+  0x1B,
+  0x0E,
+  0x04,
+  0x00,
+  0x11
+};
+
+
+int levels_queue[99];
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -165,12 +223,17 @@ int main(void)
   LiquidCrystal(GPIOD, GPIO_PIN_8, GPIO_PIN_9, GPIO_PIN_10, GPIO_PIN_11, GPIO_PIN_12, GPIO_PIN_13, GPIO_PIN_14);
   begin(20, 4);
 
+  for (int i = 0; i < 99; i++)
+	  levels_queue[i] = -1;
+
 //  setCursor(0, 0);
   createChar(0, arrow_up_0);
-  createChar(1, arrow_up_1);
-  createChar(2, arrow_up_2);
-  createChar(3, arrow_up_3);
-  createChar(4, arrow_up_4);
+  createChar(1, arrow_up_2);
+  createChar(2, arrow_up_4);
+
+  createChar(3, arrow_down_0);
+  createChar(4, arrow_down_1);
+  createChar(5, arrow_down_2);
 //    home();
 //    write(0);
 //    print("hi");
