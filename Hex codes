@@ -34,14 +34,14 @@ byte customChar[] = {
 };
 
 byte customChar[] = {
-  B11011,
-  B10001,
-  B00000,
-  B00100,
-  B01110,
-  B00000,
-  B00000,
-  B00000
+  0x1B,
+  0x11,
+  0x00,
+  0x04,
+  0x0E,
+  0x00,
+  0x00,
+  0x00
 };
 
 byte customChar[] = {
