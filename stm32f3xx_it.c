@@ -142,10 +142,10 @@ int max_level = 5;
 int last_time_btn_1 = 0, last_time_btn_2 = 0, last_time_btn_3 = 0, last_time_btn_4 = 0;
 int button4_down = 0;
 
-unsigned char levels_queue[99];
+int levels_queue[99];
 int elavator_started = 0;
 
-int tim4_count = 0;
+int tim4_count = 1;
 
 extern TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef *pwm_timer = &htim3;	// Point to PWM Timer configured in CubeMX
@@ -521,7 +521,17 @@ void EXTI9_5_IRQHandler(void)
 //		  PWM_Start();
 //		  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
 
-		  if(levels_queue)
+		  int duplicate = 0;
+		  for(int i = 0; i < ARRAY_LENGTH(levels_queue); i++) {
+			  if(levels_queue[i] == destination_level) {
+				  duplicate = 1;
+				  break;
+			  }
+		  }
+
+		  if(!duplicate && destination_level != current_level)
+			  levels_queue[ARRAY_LENGTH(levels_queue)] = destination_level;
+
 
 		  last_time_btn_3 = HAL_GetTick();
 	  }
@@ -597,12 +607,15 @@ void TIM4_IRQHandler(void)
   /* USER CODE END TIM4_IRQn 0 */
   HAL_TIM_IRQHandler(&htim4);
   /* USER CODE BEGIN TIM4_IRQn 1 */
-  if(tim4_count == 0) {
+  if(tim4_count <= 5) {
 	  PWM_Start();
 	  tim4_count += 1;
   } else {
 	  HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
-	  tim4_count = 0;
+//	  tim4_count = 0;
+	  tim4_count++;
+	  if (tim4_count == 11)
+		  tim4_count = 1;
   }
   /* USER CODE END TIM4_IRQn 1 */
 }
