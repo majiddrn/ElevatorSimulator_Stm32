@@ -26,7 +26,6 @@
 #include "LiquidCrystal.h"
 #include <string.h>
 #include <stdio.h>
-//#include <stdi>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -164,12 +163,12 @@ int elevator_started = 0;
 int tim4_count = 0;
 int tim4_lcd_counter = 0;
 int tim4_speed_count = 0;
-
+extern int led_on;
+extern unsigned char data;
 
 extern TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef *pwm_timer = &htim3;	// Point to PWM Timer configured in CubeMX
 uint32_t pwm_channel = TIM_CHANNEL_1;   // Select configured PWM channel number
-
 const Tone *volatile melody_ptr;
 volatile uint16_t melody_tone_count;
 volatile uint16_t current_tone_number;
@@ -322,6 +321,7 @@ int removeData() {
    itemCount--;
    return data;
 }
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -409,6 +409,7 @@ void Update_Melody()
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
+extern UART_HandleTypeDef huart1;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -500,6 +501,7 @@ void SVC_Handler(void)
 
   /* USER CODE END SVCall_IRQn 0 */
   /* USER CODE BEGIN SVCall_IRQn 1 */
+
   /* USER CODE END SVCall_IRQn 1 */
 }
 
@@ -563,71 +565,72 @@ void EXTI9_5_IRQHandler(void)
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_8);
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_9);
   /* USER CODE BEGIN EXTI9_5_IRQn 1 */
+
   if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_6)) {
-  	  if(HAL_GetTick() - last_time_btn_1 > 300) {
-  		  if(destination_level > 0)
-  		  		  destination_level -= 1;
-  		  last_time_btn_1 = HAL_GetTick();
-  	  }
-    }
+    	  if(HAL_GetTick() - last_time_btn_1 > 300) {
+    		  if(destination_level > 0)
+    		  		  destination_level -= 1;
+    		  last_time_btn_1 = HAL_GetTick();
+    	  }
+      }
 
-    if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_7)) {
-  	  if(HAL_GetTick() - last_time_btn_2 > 300) {
-  		  if(destination_level < max_level)
-  			  destination_level += 1;
-  		  last_time_btn_2 = HAL_GetTick();
-  	  }
-    }
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_7)) {
+    	  if(HAL_GetTick() - last_time_btn_2 > 300) {
+    		  if(destination_level < max_level)
+    			  destination_level += 1;
+    		  last_time_btn_2 = HAL_GetTick();
+    	  }
+      }
 
-    if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8)) {
-//  	  if(HAL_GetTick() - last_time_btn_3 > 300) {
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8)) {
+  //  	  if(HAL_GetTick() - last_time_btn_3 > 300) {
 
-  //		  for starting music
-  //		  PWM_Start();
-  //		  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
+    //		  for starting music
+    //		  PWM_Start();
+    //		  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
 
-//  		  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, 1);
+  //  		  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, 1);
 
-  		  int duplicate = 0;
-  		  for(int i = 0; i < q_size; i++) {
-  			  if(levels_queue[i] == destination_level) {
-  				  duplicate = 1;
-  				  break;
-  			  }
-  		  }
+    		  int duplicate = 0;
+    		  for(int i = 0; i < q_size; i++) {
+    			  if(levels_queue[i] == destination_level) {
+    				  duplicate = 1;
+    				  break;
+    			  }
+    		  }
 
-  		  if(!duplicate && destination_level != current_level) {
-  			  insert(destination_level);
-  			  elevator_started = 1;
-  			  if (elevator_jorney == -1)
-  				  elevator_jorney = destination_level;
-  		  }
+    		  if(!duplicate && destination_level != current_level) {
+    			  insert(destination_level);
+    			  elevator_started = 1;
+    			  if (elevator_jorney == -1)
+    				  elevator_jorney = destination_level;
+    		  }
 
-//  		  last_time_btn_3 = HAL_GetTick();
-//  	  }
-    }
+  //  		  last_time_btn_3 = HAL_GetTick();
+  //  	  }
+      }
 
-    if (button4_down) button4_down = 0;
+      if (button4_down) button4_down = 0;
 
-    if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9)) {
-  	  button4_down = 1;
-    }
+      if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9)) {
+    	  button4_down = 1;
+      }
 
-  //  if (button4_down) button4_down = 0;
+    //  if (button4_down) button4_down = 0;
 
-    if(button4_down == 1) {
-//    	Change_Melody(NULL, NULL);
-    	HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
-    	pwm_timer->Instance->PSC = 0;
-    	pwm_timer->Instance->ARR = 9999;
-    	warn_buzzer = 1;
-//    			  HAL_TIM_Base_Start_IT(&htim4);
-    	__HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 2500);
-  //  			  button4_down = 0;
-    } else {
-    	warn_buzzer = 0;
-    	__HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 0);
-    }
+      if(button4_down == 1) {
+  //    	Change_Melody(NULL, NULL);
+      	HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
+      	pwm_timer->Instance->PSC = 0;
+      	pwm_timer->Instance->ARR = 9999;
+      	warn_buzzer = 1;
+  //    			  HAL_TIM_Base_Start_IT(&htim4);
+      	__HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 2500);
+    //  			  button4_down = 0;
+      } else {
+      	warn_buzzer = 0;
+      	__HAL_TIM_SET_COMPARE(pwm_timer, pwm_channel, 0);
+      }
   /* USER CODE END EXTI9_5_IRQn 1 */
 }
 
@@ -642,6 +645,9 @@ void TIM2_IRQHandler(void)
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
 
+  /*
+   * Every 5 milliseconds
+   */
   if (warn_buzzer) {
     	  if(tim4_count < 50) {
     		  PWM_Start();
@@ -667,6 +673,7 @@ void TIM2_IRQHandler(void)
   	  decodeNumber(current_level);
   	  digit = 0;
     }
+
   /* USER CODE END TIM2_IRQn 1 */
 }
 
@@ -680,6 +687,11 @@ void TIM3_IRQHandler(void)
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
   /* USER CODE BEGIN TIM3_IRQn 1 */
+
+  /*
+   * PWM
+   */
+
   /* USER CODE END TIM3_IRQn 1 */
 }
 
@@ -695,114 +707,130 @@ void TIM4_IRQHandler(void)
   /* USER CODE BEGIN TIM4_IRQn 1 */
 
   /*
-   * every 50 milliseconds
-   */
+     * every 50 milliseconds
+     */
 
-  //////////////////For elevator \\\\\\\\\\\\\\\\\\\\\\\\
+    //////////////////For elevator \\\\\\\\\\\\\\\\\\\\\\\\
+  //  if (!isEmpty()) {
+    	  if (elevator_jorney >= 0) {
+    		  tim4_speed_count += 1;
+    		  if(tim4_speed_count == 40) {
+    			  if (elevator_jorney > current_level)
+    				  current_level++;
+    			  else if (elevator_jorney < current_level)
+    				  current_level--;
+    			  else {
+    				  should_wait = 1;
+    				  elevator_jorney = -1;
+    				  tim4_speed_count = 0;
+    			  }
+    			  tim4_speed_count = 0;
+    		  }
+    	  }
 
-//  if (!isEmpty()) {
-  	  if (elevator_jorney >= 0) {
-  		  tim4_speed_count += 1;
-  		  if(tim4_speed_count == 40) {
-  			  if (elevator_jorney > current_level)
-  				  current_level++;
-  			  else if (elevator_jorney < current_level)
-  				  current_level--;
-  			  else {
-  				  should_wait = 1;
-  				  elevator_jorney = -1;
-  				  tim4_speed_count = 0;
-  			  }
-  			  tim4_speed_count = 0;
+    	  int divider = wait_time / 50;
+
+    	  if (should_wait) {
+    		  tim4_speed_count++;
+    		  if (tim4_speed_count == divider) {
+    			  if (isEmpty()) {
+    				  elevator_started = 0;
+    				  elevator_jorney = -1;
+    			  }
+  //  			  elevator_jorney = peek();
+    			  elevator_jorney = removeData();
+  //  			  dequeue(levels_queue, q_size);
+  //  			  elevator_jorney = dequeue(levels_queue, q_size);
+    			  should_wait = 0;
+    			  tim4_speed_count = 0;
+    		  }
+    	  }
+
+  //  	  int q_empty = 1;
+
+  //  	  for (int i = 0; i < 99; i++) {
+  //  		  if (levels_queue[i] >= 0) {
+  //  			  q_empty = 0;
+  //  			  break;
+  //  		  }
+  //  	  }
+  //  }
+
+    /////////////////For LCD \\\\\\\\\\\\\\\\\\\\\\\\\\
+    tim4_lcd_counter += 1;
+
+    if (tim4_lcd_counter == 10) {
+
+  	  if (elevator_jorney >= 0 && elevator_started) {
+  		  home();
+  		  char str_show[15] = "";
+  		  if (current_level < elevator_jorney) {
+  			  setCursor(0, 0);
+  //			  print("                    ");
+  			  sprintf(str_show, "Going to floor %d   ", elevator_jorney);
+  			  print(str_show);
+  			  write(animation_up++);
+  			  if (animation_up == 4)
+  				  animation_up = 0;
+  			  setCursor(0, 1);
+  			  sprintf(str_show, "We were at %d", current_level);
+  			  print(str_show);
+
+  		  } else if (current_level > elevator_jorney) {
+  			  setCursor(0, 0);
+  //			  print("                    ");
+  			  sprintf(str_show, "Going to floor %d   ", elevator_jorney);
+  			  print(str_show);
+  			  write(animation_down++);
+  			  if (animation_down == 8)
+  				  animation_down = 4;
+  			  setCursor(0, 1);
+  			  sprintf(str_show, "We were at %d", current_level);
+  			  print(str_show);
+
+  		  } else {
+  			  clear();
+  			  blink();
+  			  setCursor(2, 0);
+  //			  print("                    ");
+  			  sprintf(str_show, "Stopped at %d", current_level);
+  			  print(str_show);
   		  }
+
   	  }
+  //	  setCursor(0, 3);
+  	  char str[20] = "";
+  //	  sprintf(str, "es:%d, ej:%d, w:%d", elevator_started, elevator_jorney, should_wait);
+  //	  print(str);
+  	  setCursor(0, 2);
+  	  print("                    ");
+  	  strcpy(str, "");
+  	  get_queue(str, levels_queue);
+  	  setCursor(0, 2);
+  	  print(str);
 
-  	  int divider = wait_time / 50;
+  	  tim4_lcd_counter = 0;
+    }
 
-  	  if (should_wait) {
-  		  tim4_speed_count++;
-  		  if (tim4_speed_count == divider) {
-  			  if (isEmpty()) {
-  				  elevator_started = 0;
-  				  elevator_jorney = -1;
-  			  }
-//  			  elevator_jorney = peek();
-  			  elevator_jorney = removeData();
-//  			  dequeue(levels_queue, q_size);
-//  			  elevator_jorney = dequeue(levels_queue, q_size);
-  			  should_wait = 0;
-  			  tim4_speed_count = 0;
-  		  }
-  	  }
 
-//  	  int q_empty = 1;
 
-//  	  for (int i = 0; i < 99; i++) {
-//  		  if (levels_queue[i] >= 0) {
-//  			  q_empty = 0;
-//  			  break;
-//  		  }
-//  	  }
-//  }
 
-  /////////////////For LCD \\\\\\\\\\\\\\\\\\\\\\\\\\
-
-  tim4_lcd_counter += 1;
-
-  if (tim4_lcd_counter == 10) {
-
-	  if (elevator_jorney >= 0 && elevator_started) {
-		  home();
-		  char str_show[15] = "";
-		  if (current_level < elevator_jorney) {
-			  setCursor(0, 0);
-//			  print("                    ");
-			  sprintf(str_show, "Going to floor %d   ", elevator_jorney);
-			  print(str_show);
-			  write(animation_up++);
-			  if (animation_up == 4)
-				  animation_up = 0;
-			  setCursor(0, 1);
-			  sprintf(str_show, "We were at %d", current_level);
-			  print(str_show);
-
-		  } else if (current_level > elevator_jorney) {
-			  setCursor(0, 0);
-//			  print("                    ");
-			  sprintf(str_show, "Going to floor %d   ", elevator_jorney);
-			  print(str_show);
-			  write(animation_down++);
-			  if (animation_down == 8)
-				  animation_down = 4;
-			  setCursor(0, 1);
-			  sprintf(str_show, "We were at %d", current_level);
-			  print(str_show);
-
-		  } else {
-			  clear();
-			  blink();
-			  setCursor(2, 0);
-//			  print("                    ");
-			  sprintf(str_show, "Stopped at %d", current_level);
-			  print(str_show);
-		  }
-
-	  }
-//	  setCursor(0, 3);
-	  char str[20] = "";
-//	  sprintf(str, "es:%d, ej:%d, w:%d", elevator_started, elevator_jorney, should_wait);
-//	  print(str);
-	  setCursor(0, 2);
-	  print("                    ");
-	  strcpy(str, "");
-	  get_queue(str, levels_queue);
-	  setCursor(0, 2);
-	  print(str);
-
-	  tim4_lcd_counter = 0;
-  }
 
   /* USER CODE END TIM4_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USART1 global interrupt / USART1 wake-up interrupt through EXTI line 25.
+  */
+void USART1_IRQHandler(void)
+{
+  /* USER CODE BEGIN USART1_IRQn 0 */
+
+  /* USER CODE END USART1_IRQn 0 */
+  HAL_UART_IRQHandler(&huart1);
+  /* USER CODE BEGIN USART1_IRQn 1 */
+  HAL_UART_Receive_IT(&huart1, &data, sizeof(data));
+  /* USER CODE END USART1_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */
