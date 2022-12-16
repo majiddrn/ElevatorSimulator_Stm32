@@ -23,6 +23,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "LiquidCrystal.h"
+#include <ctype.h>
+#include <string.h>
+#include <malloc.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -131,8 +134,17 @@ byte arrow_down_3[] = {
 
 
 
-
+int led_on = 1;
 int levels_queue[99];
+char password[4] = {'1', '2', '3', '4'};
+unsigned char data;
+unsigned char buffer[100] = "";
+int position = 0;
+int admin_mode = 0;
+extern int max_level;
+extern int current_level;
+extern int wait_time;
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -143,6 +155,8 @@ SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
+
+UART_HandleTypeDef huart1;
 
 PCD_HandleTypeDef hpcd_USB_FS;
 
@@ -156,16 +170,170 @@ static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USB_PCD_Init(void);
-static void MX_TIM2_Init(void);
+static void MX_USART1_UART_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM2_Init(void);
 static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
-
+extern void insert(int data);
+extern void get_queue(char str[], int queue[]);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+char* substr(const char *src, int m, int n) {
+	int len = m - n;
 
+	char *dest = (char*)malloc(sizeof(char) * (len+1));
+
+	for (int i = m; i < n && (*(src+1) != '\0'); i++) {
+		*dest = *(src+i);
+		dest++;
+	}
+
+	*dest = '\0';
+
+	return dest - len;
+}
+
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+
+	if(huart->Instance == USART1) {
+
+		if(data != '\n') {
+			buffer[position] = data;
+			buffer[position+1] = '\0';
+			position++;
+		} else {
+//			unsigned char* buffer_work = (unsigned char*)malloc(sizeof(char) * position);
+			HAL_UART_Transmit_IT(&huart1, buffer, sizeof(char) * ((int)strlen(buffer)));
+//			int i;
+//			for (i = 0; buffer[i] != '\0'; i++)
+//				buffer_work[i] = buffer[i];
+//			buffer_work[i] = '\0';
+//			print(buffer_work);
+
+			if(admin_mode) {
+
+				char set_max_level[30] = "SET MAX LEVEL";
+				char set_level[30] = "SET LEVEL";
+				char set_wait[30] = "SET WAIT";
+				char set_led[30] = "SET LED";
+				char test[30] = "TEST#";
+
+				if(strstr(buffer, set_max_level) != NULL) {
+					if(isdigit(buffer[14])) {
+						max_level = atoi(buffer[14]);
+						char msg[] = "";
+						sprintf(msg, "Max level changed to %d.\n", atoi(buffer[14]));
+						HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
+					} else {
+						char default_msg[50] = "";
+						strcpy(default_msg, "Wrong command for changing max level.\nChanged to default value: 9.\n");
+						HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
+					}
+				} else if(strstr(buffer, set_level) != NULL) {
+					if(isdigit(buffer[10])) {
+						if(atoi(buffer[10]) <= max_level && atoi(buffer[10]) >= 0) {
+							current_level = atoi(buffer[10]);
+							char msg[40] = "";
+							sprintf(msg, "Current level changed to %d.\n", atoi(buffer[10]));
+							HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
+						} else {
+							char default_msg[60]  = "";
+							sprintf(default_msg, "Cant change current level. %d is bigger than MAX_LEVEL(%d).\nCurrent level changed to %d.\n", atoi(buffer[10]), max_level, max_level);
+							HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
+						}
+					}
+				} else if(strstr(buffer, set_wait) != NULL) {
+					if(isdigit(buffer[9]) && isdigit(buffer[10]) && isdigit(buffer[11])) {
+						char* buffer_num = substr(buffer, 9, 12);
+						char* buffer_num_2 = (char*)malloc(sizeof(char) * (4));
+						if(isdigit(buffer[9]) && isdigit(buffer[10]) && isdigit(buffer[11]) && isdigit(buffer[12])) {
+							for (int i = 0; buffer_num[i] != '\0'; i++)
+								buffer_num_2[i] = buffer_num[i];
+							buffer_num_2[3] = buffer[12];
+						} else
+							strcpy(buffer_num_2, buffer_num);
+						if(atoi(buffer_num_2) >= 500 && atoi(buffer_num_2) <= 5000 && atoi(buffer_num_2) % 100 == 0) {
+							wait_time = atoi(buffer_num_2);
+							char msg[20] = "";
+							sprintf(msg, "Wait time changed to %d.\n", atoi(buffer_num_2));
+							HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
+						}
+					} else {
+						char default_msg[60] = "";
+						strcpy(default_msg, "Wrong command for changing wait time.\nWait time changed to default value: 3000.\n");
+						HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
+					}
+				} else if(strstr(buffer, set_led) != NULL) {
+					if(buffer[8] == 'O' && buffer[9] == "N") {
+						led_on = 1;
+						char msg[30] = "";
+						strcpy(msg, "LED_ON changed to ON.\n");
+						HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
+					} else if(buffer[8] == 'O' && buffer[9] == "F" && buffer[10] == "F") {
+						led_on = 0;
+						char msg[30] = "";
+						strcpy(msg, "LED_ON changed to OFF.\n");
+						HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
+					} else {
+						led_on = 1;
+						char default_msg[60] = "";
+						strcpy(default_msg, "Wrong command for changing LED_ON value.\nLED_ON changed to default value: 1.\n");
+						HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
+					}
+				}else if(strstr(buffer, test) != NULL) {
+					for (int i = 0; buffer[i] != '\0'; i++) {
+						if(isdigit(buffer[i])) {
+							insert(atoi(buffer[i]));
+						}
+					}
+
+					char str[20] = "";
+					get_queue(str, levels_queue);
+					HAL_UART_Transmit_IT(huart, str, sizeof(str));
+				}
+
+			} else {
+				// Not adming mode
+				if(strstr(buffer, "ADMIN#") && isEmpty()) {
+					int pass = 0;
+					int pass_it = 0;
+					int wrong_pass = 0;
+					for (int i = 0;  buffer[i] != '}'; i++) {
+						if (pass) {
+							if (buffer[i] != password[pass_it++]) {
+								wrong_pass = 1;
+								break;
+							}
+						}
+						if (buffer[i] == '{')
+							pass = 1;
+					}
+
+					if (!wrong_pass) {
+						admin_mode = 1;
+						char str[20] = "Welcome";
+						HAL_UART_Transmit_IT(&huart1, str, sizeof(str));
+					}
+				}
+			}
+
+
+
+			// reset buffer
+			char str[30] = "";
+			strcpy(buffer, str);
+		}
+		HAL_UART_Receive_IT(&huart1, &data, sizeof(data));
+	}
+
+//	HAL_UART_Receive_IT(&huart1, data, sizeof(data));
+
+
+}
 /* USER CODE END 0 */
 
 /**
@@ -199,11 +367,14 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   MX_USB_PCD_Init();
-  MX_TIM2_Init();
+  MX_USART1_UART_Init();
   MX_TIM3_Init();
+  MX_TIM2_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 //  HAL_TIM_Base_Start_IT(&htim3);
+
+//  HAL_UART_Receive_IT(huart, pData, Size)
 
   LiquidCrystal(GPIOD, GPIO_PIN_8, GPIO_PIN_9, GPIO_PIN_10, GPIO_PIN_11, GPIO_PIN_12, GPIO_PIN_13, GPIO_PIN_14);
   begin(20, 4);
@@ -231,6 +402,9 @@ int main(void)
 //  PWM_Start();
   __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
 //  print("hi");
+
+  HAL_UART_Receive_IT(&huart1, &data, sizeof(data));
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -282,7 +456,9 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_I2C1;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_USART1
+                              |RCC_PERIPHCLK_I2C1;
+  PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
   PeriphClkInit.USBClockSelection = RCC_USBCLKSOURCE_PLL;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
@@ -527,6 +703,41 @@ static void MX_TIM4_Init(void)
 }
 
 /**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 9600;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
   * @brief USB Initialization Function
   * @param None
   * @retval None
@@ -589,14 +800,6 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
                           |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : DRDY_Pin MEMS_INT3_Pin MEMS_INT4_Pin MEMS_INT1_Pin
-                           MEMS_INT2_Pin */
-  GPIO_InitStruct.Pin = DRDY_Pin|MEMS_INT3_Pin|MEMS_INT4_Pin|MEMS_INT1_Pin
-                          |MEMS_INT2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-
   /*Configure GPIO pins : CS_I2C_SPI_Pin LD4_Pin LD3_Pin LD5_Pin
                            LD7_Pin LD9_Pin LD10_Pin LD8_Pin
                            LD6_Pin */
@@ -606,6 +809,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : MEMS_INT3_Pin MEMS_INT4_Pin */
+  GPIO_InitStruct.Pin = MEMS_INT3_Pin|MEMS_INT4_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC0 PC1 */
