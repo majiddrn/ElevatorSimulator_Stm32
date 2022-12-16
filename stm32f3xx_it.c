@@ -23,7 +23,10 @@
 #include "stm32f3xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "string.h"
+#include "LiquidCrystal.h"
+#include <string.h>
+#include <stdio.h>
+//#include <stdi>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -132,6 +135,7 @@ typedef struct
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define ARRAY_LENGTH(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define MAX 99
 typedef unsigned char byte;
 /* USER CODE END PM */
 
@@ -151,10 +155,11 @@ int going_down = 0;		// when elevator going down
 int elevator_jorney = -1; // when elevator is moving from one floor to another = next floor;; when waiting = -1
 int should_wait = 0;
 int wait_time = 3000;
-extern int levels_queue[99];
+extern int levels_queue[MAX];
+int front = 0;
+int rear = -1;
+int itemCount = 0;
 int q_size = 99;
-int Rear = -1;
-int Front = -1;
 int elevator_started = 0;
 int tim4_count = 0;
 int tim4_lcd_counter = 0;
@@ -268,32 +273,54 @@ const Tone greensleeves[] = {
 
 };
 
-void enqueue(int inp_arr[], int q_size, int insert_item) {
-    if (Rear == q_size - 1)
-       printf("Overflow \n");
-    else
-    {
-        if (Front == - 1)
-        	Front = 0;
-
-        Rear = Rear + 1;
-        inp_arr[Rear] = insert_item;
-    }
+void get_queue(char str[], int queue[]) {
+	char q_num[2] = "";
+	for (int i = 0; i < q_size; i++) {
+		if (queue[i] != -1) {
+			sprintf(q_num, "%d", queue[i]);
+			strcat(str, q_num);
+		}
+	}
 }
 
-int dequeue(int inp_arr[], int q_size)
-{
-    if (Front == - 1 || Front > Rear)
-    {
-        return -1;
-    }
-    else
-    {
-    	Front = Front + 1;
-    	int ret = inp_arr[Front];
-    	inp_arr[Front] = -1;
-        return ret;
-    }
+int peek() {
+   return levels_queue[front];
+}
+
+int isEmpty() {
+   return itemCount == 0;
+}
+
+int isFull() {
+   return itemCount == MAX;
+}
+
+int size() {
+   return itemCount;
+}
+
+void insert(int data) {
+
+   if(!isFull()) {
+
+      if(rear == MAX-1) {
+         rear = -1;
+      }
+
+      levels_queue[++rear] = data;
+      itemCount++;
+   }
+}
+
+int removeData() {
+   int data = levels_queue[front++];
+   levels_queue[front-1] = -1;
+   if(front == MAX) {
+      front = 0;
+   }
+
+   itemCount--;
+   return data;
 }
 /* USER CODE END PV */
 
@@ -553,11 +580,13 @@ void EXTI9_5_IRQHandler(void)
     }
 
     if(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_8)) {
-  	  if(HAL_GetTick() - last_time_btn_3 > 300) {
+//  	  if(HAL_GetTick() - last_time_btn_3 > 300) {
 
   //		  for starting music
   //		  PWM_Start();
   //		  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
+
+//  		  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, 1);
 
   		  int duplicate = 0;
   		  for(int i = 0; i < q_size; i++) {
@@ -568,14 +597,14 @@ void EXTI9_5_IRQHandler(void)
   		  }
 
   		  if(!duplicate && destination_level != current_level) {
-  			  enqueue(levels_queue, q_size, destination_level);
+  			  insert(destination_level);
   			  elevator_started = 1;
   			  if (elevator_jorney == -1)
   				  elevator_jorney = destination_level;
   		  }
 
-  		  last_time_btn_3 = HAL_GetTick();
-  	  }
+//  		  last_time_btn_3 = HAL_GetTick();
+//  	  }
     }
 
     if (button4_down) button4_down = 0;
@@ -587,7 +616,7 @@ void EXTI9_5_IRQHandler(void)
   //  if (button4_down) button4_down = 0;
 
     if(button4_down == 1) {
-    	Change_Melody(NULL, NULL);
+//    	Change_Melody(NULL, NULL);
     	HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
     	pwm_timer->Instance->PSC = 0;
     	pwm_timer->Instance->ARR = 9999;
@@ -612,6 +641,23 @@ void TIM2_IRQHandler(void)
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);
   /* USER CODE BEGIN TIM2_IRQn 1 */
+
+  if (warn_buzzer) {
+    	  if(tim4_count < 50) {
+    		  PWM_Start();
+    		  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 2500);
+    		  tim4_count += 1;
+    	  } else {
+  //  	  HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
+    //	  tim4_count = 0;
+    		  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
+    		  tim4_count++;
+    		  if (tim4_count == 100)
+    			  tim4_count = 0;
+    	  }
+    }
+
+
   if(digit == 0) {
   	  setSeg0On();
   	  decodeNumber(destination_level);
@@ -651,29 +697,13 @@ void TIM4_IRQHandler(void)
   /*
    * every 50 milliseconds
    */
-  if (warn_buzzer) {
-  	  if(tim4_count <= 5) {
-  		  PWM_Start();
-  		  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 50);
-  		  tim4_count += 1;
-  	  } else {
-//  	  HAL_TIM_PWM_Stop(pwm_timer, pwm_channel);
-  //	  tim4_count = 0;
-  		  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
-  		  tim4_count++;
-  		  if (tim4_count == 11)
-  			  tim4_count = 1;
-  	  }
-  }
-
-
 
   //////////////////For elevator \\\\\\\\\\\\\\\\\\\\\\\\
 
-  if (elevator_started) {
+//  if (!isEmpty()) {
   	  if (elevator_jorney >= 0) {
   		  tim4_speed_count += 1;
-  		  if(tim4_speed_count == 60) {
+  		  if(tim4_speed_count == 40) {
   			  if (elevator_jorney > current_level)
   				  current_level++;
   			  else if (elevator_jorney < current_level)
@@ -691,75 +721,84 @@ void TIM4_IRQHandler(void)
 
   	  if (should_wait) {
   		  tim4_speed_count++;
-  		  if (tim4_speed_count >= divider) {
-  			  elevator_jorney = dequeue(levels_queue, q_size);
-  			setCursor(0, 2);
-  			  		char str_show[20] = "";
-  			  		  			  	  sprintf(str_show, "hi dq:%d", tim4_speed_count);
-  			  		  			  	  print(str_show);
+  		  if (tim4_speed_count == divider) {
+  			  if (isEmpty()) {
+  				  elevator_started = 0;
+  				  elevator_jorney = -1;
+  			  }
+//  			  elevator_jorney = peek();
+  			  elevator_jorney = removeData();
+//  			  dequeue(levels_queue, q_size);
+//  			  elevator_jorney = dequeue(levels_queue, q_size);
   			  should_wait = 0;
   			  tim4_speed_count = 0;
   		  }
   	  }
 
-  	  int q_empty = 1;
+//  	  int q_empty = 1;
 
-  	  for (int i = 0; i < 99; i++) {
-  		  if (levels_queue[i] >= 0) {
-  			  q_empty = 0;
-  			  break;
-  		  }
-  	  }
-
-  	  if (q_empty) {
-  		  elevator_jorney = -1;
-  	  }
-  }
+//  	  for (int i = 0; i < 99; i++) {
+//  		  if (levels_queue[i] >= 0) {
+//  			  q_empty = 0;
+//  			  break;
+//  		  }
+//  	  }
+//  }
 
   /////////////////For LCD \\\\\\\\\\\\\\\\\\\\\\\\\\
 
   tim4_lcd_counter += 1;
 
   if (tim4_lcd_counter == 10) {
+
 	  if (elevator_jorney >= 0 && elevator_started) {
 		  home();
 		  char str_show[15] = "";
 		  if (current_level < elevator_jorney) {
-			  sprintf(str_show, "Going to floor %d", elevator_jorney);
+			  setCursor(0, 0);
+//			  print("                    ");
+			  sprintf(str_show, "Going to floor %d   ", elevator_jorney);
 			  print(str_show);
 			  write(animation_up++);
-			  if (animation_up == 3)
+			  if (animation_up == 4)
 				  animation_up = 0;
 			  setCursor(0, 1);
 			  sprintf(str_show, "We were at %d", current_level);
 			  print(str_show);
 
 		  } else if (current_level > elevator_jorney) {
-			  sprintf(str_show, "Going to floor %d", elevator_jorney);
+			  setCursor(0, 0);
+//			  print("                    ");
+			  sprintf(str_show, "Going to floor %d   ", elevator_jorney);
 			  print(str_show);
 			  write(animation_down++);
-			  if (animation_down == 6)
-				  animation_down = 3;
+			  if (animation_down == 8)
+				  animation_down = 4;
 			  setCursor(0, 1);
 			  sprintf(str_show, "We were at %d", current_level);
 			  print(str_show);
 
 		  } else {
+			  clear();
+			  blink();
+			  setCursor(2, 0);
+//			  print("                    ");
 			  sprintf(str_show, "Stopped at %d", current_level);
 			  print(str_show);
 		  }
-		  setCursor(0, 3);
-		  sprintf(str_show,"e_s:%d, e_j:%d, s_w:%d", elevator_started, elevator_jorney, should_wait);
-		  print(str_show);
+
 	  }
-  //  	  if (going_up) {
-  //  		  home();
-  //  		  print("We are Going Up ");
-  ////  		  setCursor(col, row)
-  //  		  write(animation_up++);
-  //  		  if (animation_up == 5)
-  //  			  animation_up = 0;
-  //  	  }
+//	  setCursor(0, 3);
+	  char str[20] = "";
+//	  sprintf(str, "es:%d, ej:%d, w:%d", elevator_started, elevator_jorney, should_wait);
+//	  print(str);
+	  setCursor(0, 2);
+	  print("                    ");
+	  strcpy(str, "");
+	  get_queue(str, levels_queue);
+	  setCursor(0, 2);
+	  print(str);
+
 	  tim4_lcd_counter = 0;
   }
 
