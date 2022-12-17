@@ -622,11 +622,11 @@ void EXTI9_5_IRQHandler(void)
   			  elevator_started = 1;
   			  if (elevator_jorney == -1) {
   				  elevator_jorney = destination_level;
-  				  if (!music_on) {
-  				  	  PWM_Start();
-  				  	  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
-  				  	  music_on = 1;
-  				  }
+//  				  if (!music_on) {
+//  				  	  PWM_Start();
+//  				  	  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
+//  				  	  music_on = 1;
+//  				  }
   			  }
   		  }
 
@@ -740,8 +740,8 @@ void TIM4_IRQHandler(void)
 //		  music_on = 0;
 //	  }
 //  }
-  	  if (elevator_jorney == -1)
-  		  music_on = 0;
+//  	  if (elevator_jorney == -1)
+//  		  music_on = 0;
 
   	  if (elevator_jorney >= 0) {
   		  tim4_speed_count += 1;
@@ -759,10 +759,10 @@ void TIM4_IRQHandler(void)
   				  elevator_jorney = -1;
   				  tim4_speed_count = 0;
 //  				  music_on = 0;
-  				  if (music_on) {
-  				  	  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
-  				  	  music_on = 0;
-  				  }
+//  				  if (music_on) {
+//  				  	  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+//  				  	  music_on = 0;
+//  				  }
   			  }
   			  tim4_speed_count = 0;
   		  }
@@ -776,20 +776,14 @@ void TIM4_IRQHandler(void)
   			  if (isEmpty()) {
   				  elevator_started = 0;
   				  elevator_jorney = -1;
-  			  }else {
-//  				  music_on = 1;
-  				  if (!music_on) {
-  				  	  PWM_Start();
-  				  	  Change_Melody(greensleeves, ARRAY_LENGTH(greensleeves));
-  				  	  music_on = 1;
-  				  }
-  			  }
+  			  } else {
 //  			  elevator_jorney = peek();
-  			  elevator_jorney = removeData();
+  				  elevator_jorney = removeData();
 //  			  dequeue(levels_queue, q_size);
 //  			  elevator_jorney = dequeue(levels_queue, q_size);
-  			  should_wait = 0;
-  			  tim4_speed_count = 0;
+  			  	  should_wait = 0;
+  			  	  tim4_speed_count = 0;
+  			  }
   		  }
   	  }
 
