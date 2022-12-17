@@ -23,9 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "LiquidCrystal.h"
-#include <ctype.h>
 #include <string.h>
-#include <malloc.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,6 +33,7 @@ typedef unsigned char byte;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -133,11 +132,11 @@ byte arrow_down_3[] = {
 };
 
 
-
 int led_on = 1;
 int levels_queue[99];
 char password[4] = {'1', '2', '3', '4'};
 unsigned char data;
+unsigned char data2[20] = "";
 unsigned char buffer[100] = "";
 int position = 0;
 int admin_mode = 0;
@@ -145,6 +144,7 @@ extern int max_level;
 extern int current_level;
 extern int wait_time;
 
+int levels_queue[99];
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -170,13 +170,22 @@ static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USB_PCD_Init(void);
-static void MX_USART1_UART_Init(void);
-static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 extern void insert(int data);
 extern void get_queue(char str[], int queue[]);
+extern void makeEmpty();
+extern int removeData();
+extern int isEmpty();
+extern int peek();
+extern int isInQ(int val);
+extern int elevator_jorney;
+extern int elevator_started;
+extern int front;
+extern int rear;
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -196,18 +205,49 @@ char* substr(const char *src, int m, int n) {
 	return dest - len;
 }
 
+int a2i(char* str)
+{
+    // Initialize result
+    int res = 0;
+
+    for (int i = 0; str[i] != '\0'; ++i)
+        res = res * 10 + str[i] - '0';
+
+    // return result.
+    return res;
+}
+
+char *strrev(char *str)
+{
+      char *p1, *p2;
+
+      if (! str || ! *str)
+            return str;
+      for (p1 = str, p2 = str + strlen(str) - 1; p2 > p1; ++p1, --p2)
+      {
+            *p1 ^= *p2;
+            *p2 ^= *p1;
+            *p1 ^= *p2;
+      }
+      return str;
+}
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
 	if(huart->Instance == USART1) {
-
+		HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, 1);
 		if(data != '\n') {
 			buffer[position] = data;
 			buffer[position+1] = '\0';
 			position++;
 		} else {
 //			unsigned char* buffer_work = (unsigned char*)malloc(sizeof(char) * position);
-			HAL_UART_Transmit_IT(&huart1, buffer, sizeof(char) * ((int)strlen(buffer)));
+//			HAL_UART_Transmit_IT(&huart1, buffer, (int)strlen(buffer));
+
+//			if (strstr(buffer, "23"))
+//				HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, 1);
+//			if (strstr(buffer, "21"))
+//				HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, 1);
 //			int i;
 //			for (i = 0; buffer[i] != '\0'; i++)
 //				buffer_work[i] = buffer[i];
@@ -216,89 +256,243 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 
 			if(admin_mode) {
 
-				char set_max_level[30] = "SET MAX LEVEL";
-				char set_level[30] = "SET LEVEL";
-				char set_wait[30] = "SET WAIT";
-				char set_led[30] = "SET LED";
-				char test[30] = "TEST#";
+				char set_max_level[30] = "ET MAX LEVEL";
+				char set_level[30] = "ET LEVEL";
+				char set_wait[30] = "ET WAIT";
+				char set_led[30] = "ET LED";
+				char test[30] = "EST#";
+				char start[30] = "TART";
+				char emptyq[30] = "MPTYQ";
+
+				strcat(buffer, " ");
 
 				if(strstr(buffer, set_max_level) != NULL) {
-					if(isdigit(buffer[14])) {
-						max_level = atoi(buffer[14]);
-						char msg[] = "";
-						sprintf(msg, "Max level changed to %d.\n", atoi(buffer[14]));
-						HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
+					makeEmpty();
+					int m_l = -1;
+					for (int i = 0; i < strlen(buffer); i++) {
+						if (buffer[i] == 'L' && buffer[i + 2] >= '0' && buffer[i + 2] <= '9') {
+							char sm2i[5];
+							sprintf(sm2i, "%c", buffer[i+2]);
+							m_l = a2i(sm2i);
+							break;
+						}
+					}
+
+
+//					char ss[10] = "";
+//					if (m_l == 8) HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, 1);
+//					sprintf(ss, "%d ", m_l);
+//					HAL_UART_Transmit_IT(&huart1, ss, 2);
+					if(m_l >= 0) {
+//						max_level = atoi(buffer[14]);
+						max_level = m_l;
+						current_level = 0;
+						char msg[50] = "";
+//						sprintf(msg, "Max level changed to %d.\n", atoi(buffer[14]));
+						sprintf(msg, "Max level changed to %d.\n", m_l);
+						HAL_UART_Transmit_IT(huart, msg, strlen(msg));
 					} else {
 						char default_msg[50] = "";
 						strcpy(default_msg, "Wrong command for changing max level.\nChanged to default value: 9.\n");
-						HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
+						HAL_UART_Transmit_IT(huart, default_msg, strlen(default_msg));
 					}
+//				}
 				} else if(strstr(buffer, set_level) != NULL) {
-					if(isdigit(buffer[10])) {
-						if(atoi(buffer[10]) <= max_level && atoi(buffer[10]) >= 0) {
-							current_level = atoi(buffer[10]);
-							char msg[40] = "";
-							sprintf(msg, "Current level changed to %d.\n", atoi(buffer[10]));
-							HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
-						} else {
-							char default_msg[60]  = "";
-							sprintf(default_msg, "Cant change current level. %d is bigger than MAX_LEVEL(%d).\nCurrent level changed to %d.\n", atoi(buffer[10]), max_level, max_level);
-							HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
-						}
-					}
-				} else if(strstr(buffer, set_wait) != NULL) {
-					if(isdigit(buffer[9]) && isdigit(buffer[10]) && isdigit(buffer[11])) {
-						char* buffer_num = substr(buffer, 9, 12);
-						char* buffer_num_2 = (char*)malloc(sizeof(char) * (4));
-						if(isdigit(buffer[9]) && isdigit(buffer[10]) && isdigit(buffer[11]) && isdigit(buffer[12])) {
-							for (int i = 0; buffer_num[i] != '\0'; i++)
-								buffer_num_2[i] = buffer_num[i];
-							buffer_num_2[3] = buffer[12];
-						} else
-							strcpy(buffer_num_2, buffer_num);
-						if(atoi(buffer_num_2) >= 500 && atoi(buffer_num_2) <= 5000 && atoi(buffer_num_2) % 100 == 0) {
-							wait_time = atoi(buffer_num_2);
-							char msg[20] = "";
-							sprintf(msg, "Wait time changed to %d.\n", atoi(buffer_num_2));
-							HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
-						}
-					} else {
-						char default_msg[60] = "";
-						strcpy(default_msg, "Wrong command for changing wait time.\nWait time changed to default value: 3000.\n");
-						HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
-					}
-				} else if(strstr(buffer, set_led) != NULL) {
-					if(buffer[8] == 'O' && buffer[9] == "N") {
-						led_on = 1;
-						char msg[30] = "";
-						strcpy(msg, "LED_ON changed to ON.\n");
-						HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
-					} else if(buffer[8] == 'O' && buffer[9] == "F" && buffer[10] == "F") {
-						led_on = 0;
-						char msg[30] = "";
-						strcpy(msg, "LED_ON changed to OFF.\n");
-						HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
-					} else {
-						led_on = 1;
-						char default_msg[60] = "";
-						strcpy(default_msg, "Wrong command for changing LED_ON value.\nLED_ON changed to default value: 1.\n");
-						HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
-					}
-				}else if(strstr(buffer, test) != NULL) {
-					for (int i = 0; buffer[i] != '\0'; i++) {
-						if(isdigit(buffer[i])) {
-							insert(atoi(buffer[i]));
+					makeEmpty();
+					int c_l = -1;
+					for (int i = 0; i < strlen(buffer); i++) {
+						if (buffer[i] == 'L' && buffer[i + 2] >= '0' && buffer[i + 2] <= '9') {
+							char sm2i[5];
+							sprintf(sm2i, "%c", buffer[i+2]);
+							c_l = a2i(sm2i);
+							break;
 						}
 					}
 
-					char str[20] = "";
-					get_queue(str, levels_queue);
-					HAL_UART_Transmit_IT(huart, str, sizeof(str));
+					if (c_l >= 0) {
+						if (c_l >= max_level)
+							c_l = max_level;
+
+						current_level = c_l;
+						char msg[40] = "";
+						sprintf(msg, "Current level changed to %d.\n", c_l);
+						HAL_UART_Transmit_IT(huart, msg, strlen(msg));
+					}
+
+//					if(isdigit(buffer[10])) {
+//						if(atoi(buffer[10]) <= max_level && atoi(buffer[10]) >= 0) {
+//							current_level = atoi(buffer[10]);
+//							char msg[40] = "";
+//							sprintf(msg, "Current level changed to %d.\n", atoi(buffer[10]));
+//							HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
+//						} else {
+//							char default_msg[60]  = "";
+//							sprintf(default_msg, "Cant change current level. %d is bigger than MAX_LEVEL(%d).\nCurrent level changed to %d.\n", atoi(buffer[10]), max_level, max_level);
+//							HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
+//						}
+//					}
+//				}
+				} else if(strstr(buffer, set_wait) != NULL) {
+
+					int w_t = -1;
+					for (int i = 0; i < strlen(buffer); i++) {
+						if (buffer[i] == 'T' && buffer[i + 2] >= '1' && buffer[i + 2] <= '9') {
+							char sm2i[20] = "";
+							for (int j = i + 2; buffer[j] >= '0' && buffer[j] <= '9'; j++) {
+								char tmp[3] = "";
+								sprintf(tmp, "%c", buffer[j]);
+								strcat(sm2i, tmp);
+							}
+							w_t = a2i(sm2i);
+							break;
+						}
+					}
+
+//					char tmp[20] = "";
+//					sprintf(tmp, "%d", w_t);
+//					HAL_UART_Transmit_IT(&huart1, tmp, strlen(tmp));
+
+					if (w_t % 100 == 0 && w_t >= 500 && w_t <= 5000) {
+						wait_time = w_t;
+						char msg[50];
+						sprintf(msg, "Wait time changed to %d.\n", w_t);
+						HAL_UART_Transmit_IT(huart, msg, strlen(msg));
+					} else {
+						wait_time = 3000;
+						char msg[200] = "Wrong value limit; Wait time changed to default value: 3000.\n ";
+						HAL_UART_Transmit_IT(huart, msg, strlen(msg));
+					}
+
+//					if(isdigit(buffer[9]) && isdigit(buffer[10]) && isdigit(buffer[11])) {
+//						char* buffer_num = substr(buffer, 9, 12);
+//						char* buffer_num_2 = (char*)malloc(sizeof(char) * (4));
+//						if(isdigit(buffer[9]) && isdigit(buffer[10]) && isdigit(buffer[11]) && isdigit(buffer[12])) {
+//							for (int i = 0; buffer_num[i] != '\0'; i++)
+//								buffer_num_2[i] = buffer_num[i];
+//							buffer_num_2[3] = buffer[12];
+//						} else
+//							strcpy(buffer_num_2, buffer_num);
+//						if(atoi(buffer_num_2) >= 500 && atoi(buffer_num_2) <= 5000 && atoi(buffer_num_2) % 100 == 0) {
+//							wait_time = atoi(buffer_num_2);
+//							char msg[20] = "";
+//							sprintf(msg, "Wait time changed to %d.\n", atoi(buffer_num_2));
+//							HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
+//						}
+//					} else {
+//						char default_msg[60] = "";
+//						strcpy(default_msg, "Wrong command for changing wait time.\nWait time changed to default value: 3000.\n");
+//						HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
+//					}
+//				}
+				} else if(strstr(buffer, set_led) != NULL) {
+					int s_l = -1;
+
+					for (int i = 0; i < strlen(buffer) ; i++) {
+						if (buffer[i] == 'O') {
+							if (buffer[i + 1] == 'N')
+								s_l = 1;
+							if (buffer[i + 1] == 'F' && buffer[i + 2] == 'F')
+								s_l = 0;
+
+							break;
+						}
+					}
+
+					if (s_l == -1) {
+						led_on = 1;
+						char msg[100] = "Wrong format; set to default value: ON.\n";
+						HAL_UART_Transmit_IT(huart, msg, strlen(msg));
+					} else {
+						led_on = s_l;
+						if (s_l) {
+							char msg[100] = "LED set: ON.\n";
+							HAL_UART_Transmit_IT(huart, msg, strlen(msg));
+						} else {
+							char msg[100] = "LED set: OFF.\n";
+							HAL_UART_Transmit_IT(huart, msg, strlen(msg));
+						}
+					}
+//					if(buffer[8] == 'O' && buffer[9] == "N") {
+//						led_on = 1;
+//						char msg[30] = "";
+//						strcpy(msg, "LED_ON changed to ON.\n");
+//						HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
+//					} else if(buffer[8] == 'O' && buffer[9] == "F" && buffer[10] == "F") {
+//						led_on = 0;
+//						char msg[30] = "";
+//						strcpy(msg, "LED_ON changed to OFF.\n");
+//						HAL_UART_Transmit_IT(huart, msg, sizeof(msg));
+//					} else {
+//						led_on = 1;
+//						char default_msg[60] = "";
+//						strcpy(default_msg, "Wrong command for changing LED_ON value.\nLED_ON changed to default value: 1.\n");
+//						HAL_UART_Transmit_IT(huart, default_msg, sizeof(default_msg));
+//					}
+//				}
+				}else if(strstr(buffer, test) != NULL) {
+					int i;
+					int hash_i;
+
+					for (i = 0; buffer[i - 1] != '#'; i++);
+					hash_i = i;
+					for (; i < strlen(buffer); i++) {
+						if (buffer[i] >= '0' && buffer[i] <= '9') {
+							char ss[10];
+							sprintf(ss, "%c", buffer[i]);
+							if (!isInQ(a2i(ss)))
+								insert(a2i(ss));
+						} else
+							break;
+					}
+
+					if (buffer[hash_i] >= '0' && buffer[i] <= '9') {
+						char q[50] = "";
+						get_queue(q, levels_queue);
+						if (strlen(q) > 5) {
+							char err_msg[40] = "Too many arguments.\n";
+							HAL_UART_Transmit_IT(huart, err_msg, strlen(err_msg));
+						} else {
+							strcat(q, " :Queue.\n");
+							HAL_UART_Transmit_IT(huart, q, strlen(q));
+						}
+					} else {
+						char str[50] = "Invalid input.\n";
+						HAL_UART_Transmit_IT(huart, str, strlen(str));
+					}
+
+//					for (int i = 0; buffer[i] != '\0'; i++) {
+//						if(isdigit(buffer[i])) {
+//							insert(atoi(buffer[i]));
+//						}
+//					}
+//
+//					char str[20] = "";
+//					get_queue(str, levels_queue);
+//					HAL_UART_Transmit_IT(huart, str, sizeof(str));
+				} else if (strstr(buffer, start) != NULL) {
+					elevator_jorney = peek();
+					removeData();
+					elevator_started = 0;
+					admin_mode = 0;
+					char msg[50] = "Elevator started; Adming mode: Disabled.\n";
+					HAL_UART_Transmit_IT(huart, msg, strlen(msg));
+				} else if (strstr(buffer, emptyq) != NULL) {
+					makeEmpty();
+					char msg[50] = "Queue became empty.\n";
+					HAL_UART_Transmit_IT(huart, msg, strlen(msg));
 				}
 
+				//reset buffer
+				char str[30] = "\0";
+				position = 0;
+				strcpy(buffer, str);
+//
 			} else {
-				// Not adming mode
-				if(strstr(buffer, "ADMIN#") && isEmpty()) {
+//				HAL_UART_Transmit_IT(&huart1, buffer, strlen(buffer));
+
+//				// Not adming mode
+				if(strstr(buffer, "DMIN#") && isEmpty()) {
+					HAL_GPIO_WritePin(GPIOE, GPIO_PIN_11, 1);
 					int pass = 0;
 					int pass_it = 0;
 					int wrong_pass = 0;
@@ -312,28 +506,157 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
 						if (buffer[i] == '{')
 							pass = 1;
 					}
-
+//
 					if (!wrong_pass) {
 						admin_mode = 1;
 						char str[20] = "Welcome";
-						HAL_UART_Transmit_IT(&huart1, str, sizeof(str));
+						HAL_UART_Transmit_IT(&huart1, str, strlen(str));
 					}
 				}
 			}
 
 
+			//reset buffer
+					char str[30] = "\0";
+					position = 0;
+					strcpy(buffer, str);
 
-			// reset buffer
-			char str[30] = "";
-			strcpy(buffer, str);
 		}
-		HAL_UART_Receive_IT(&huart1, &data, sizeof(data));
+
+//		HAL_UART_Receive_IT(&huart1, &data, sizeof(data));
 	}
 
 //	HAL_UART_Receive_IT(&huart1, data, sizeof(data));
 
 
 }
+
+
+//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+
+//	HAL_UART_Transmit_IT(&huart1, data2, sizeof(data2));
+
+//	for (int i = 0; i < 20; i++)
+//		if (data2[i] == '\n'){
+//			data2[i] = '\0';
+//			break;
+//		}
+
+//	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_10, 1);
+
+//	print(data2);
+
+//	HAL_UART_Transmit(&huart1, data2, sizeof(data2), 1000);
+
+//	if (strstr(data2, "123") != NULL)
+//		HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, 1);
+//
+//	if (strstr(data2, "321") != NULL)
+//		HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, 1);
+
+//	if(adminmode==1){
+//
+//		  if (strstr(data, "SET MAX LEVEL") != NULL) {
+//			  maxfloor = getInputNumber();
+//			  currentfloor = 0;
+//			  emptythelist();
+//		  }
+//		  else if (strstr(data, "SET LEVEL") != NULL) {
+//			  currentfloor = getInputNumber();
+//			  emptythelist();
+//
+//		  }
+//		  else if (strstr(data, "SET WAIT") != NULL) {
+//			  waitscal = (int)getInputNumber()/100;
+//
+//		  }
+//		  else if (strstr(data, "SET LED") != NULL) {
+//			  if(strstr(data, "ON") != NULL){
+//				  ledOn = 1;
+//
+//			  }
+//			  else{
+//				  ledOn = 0;
+//
+//				  deActiveLed();
+//			  }
+//		  }
+//		  else if(strstr(data, "TEST#") != NULL){
+//
+//			  pushInput();
+//
+//		  }else if(strstr(data, "START") != NULL){
+//			  sortfloors();
+//			  elevatorbool=1;
+//			  adminmode=0;
+//
+//
+//		  }
+//		  else if(strstr(data, "SET ADMIN PASS#") != NULL){
+//			  int pass = getInputNumber();
+//			  if(log10(pass) ==4){
+//				  password=pass;
+//				  HAL_UART_Transmit(&huart1, passright, sizeof(passright)-1 , 1000);
+//			  }
+//			  else{
+//				  HAL_UART_Transmit(&huart1, passwrong, sizeof(passwrong)-1 , 1000);
+//			  }
+//		  }
+//		  else{
+//			  HAL_UART_Transmit(&huart1, commandNotFound, sizeof(commandNotFound)-1 , 1000);
+//		  }
+//
+//	}
+//	else{
+//		  if (strstr(data, "ADMIN#") != NULL) {
+//			  int pass = getInputNumber();
+//			  if (pass == password){
+//				  adminmode = 1;
+//
+//				  HAL_UART_Transmit(&huart1, passright, sizeof(passright)-1 , 1000);
+//			  }
+//			  else{
+//				  HAL_UART_Transmit(&huart1, passwrong, sizeof(passwrong)-1 , 1000);
+//			  }
+//		 }
+//		  else{
+//
+//			  	  HAL_UART_Transmit(&huart1, commandNotFound, sizeof(commandNotFound)-1 , 1000);
+//
+//		  }
+//
+//	}
+
+//			strcpy(data2, "");
+//			HAL_UART_Receive_IT(&huart1, data2, sizeof(data2));
+
+//}
+
+//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
+//		if(huart->Instance == USART2){
+//			HAL_GPIO_WritePin(GPIOE, GPIO_PIN_9, 1);
+//			if(data != '\n'){
+//					buffer[position] = data;
+//					// end od string in c
+//					buffer[position+1] = '\0';
+//				  position++;
+//			}else {
+//
+//				HAL_UART_Transmit_IT(&huart2, buffer, (int)strlen(buffer));
+//				position = 0;
+//				strcpy(buffer, "\0");
+//						//check the buffer for specific string with string.h function
+//			}
+//
+//			//copy your ISR code
+//			HAL_UART_Receive_IT(&huart2,&data,sizeof(data));
+//
+//		}
+//
+//
+////			HAL_UART_Receive_IT(&huart2,&data,sizeof(data));
+//
+//}
 /* USER CODE END 0 */
 
 /**
@@ -367,14 +690,12 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   MX_USB_PCD_Init();
-  MX_USART1_UART_Init();
-  MX_TIM3_Init();
   MX_TIM2_Init();
+  MX_TIM3_Init();
   MX_TIM4_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 //  HAL_TIM_Base_Start_IT(&htim3);
-
-//  HAL_UART_Receive_IT(huart, pData, Size)
 
   LiquidCrystal(GPIOD, GPIO_PIN_8, GPIO_PIN_9, GPIO_PIN_10, GPIO_PIN_11, GPIO_PIN_12, GPIO_PIN_13, GPIO_PIN_14);
   begin(20, 4);
@@ -396,15 +717,15 @@ int main(void)
 //    write(0);
 //    print("hi");
 //  print(customChar);
+
+  HAL_UART_Receive_IT(&huart1, &data, sizeof(data));
+
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_TIM_Base_Start_IT(&htim4);
 
 //  PWM_Start();
   __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
 //  print("hi");
-
-  HAL_UART_Receive_IT(&huart1, &data, sizeof(data));
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -718,7 +1039,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 9600;
+  huart1.Init.BaudRate = 4800;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -800,6 +1121,14 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
                           |GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
+  /*Configure GPIO pins : DRDY_Pin MEMS_INT3_Pin MEMS_INT4_Pin MEMS_INT1_Pin
+                           MEMS_INT2_Pin */
+  GPIO_InitStruct.Pin = DRDY_Pin|MEMS_INT3_Pin|MEMS_INT4_Pin|MEMS_INT1_Pin
+                          |MEMS_INT2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
   /*Configure GPIO pins : CS_I2C_SPI_Pin LD4_Pin LD3_Pin LD5_Pin
                            LD7_Pin LD9_Pin LD10_Pin LD8_Pin
                            LD6_Pin */
@@ -809,12 +1138,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : MEMS_INT3_Pin MEMS_INT4_Pin */
-  GPIO_InitStruct.Pin = MEMS_INT3_Pin|MEMS_INT4_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PC0 PC1 */

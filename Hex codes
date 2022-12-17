@@ -53,7 +53,7 @@ byte customChar[] = {
   0x00,
   0x00,
   0x00
-};
+};>
 
 
 arrow_down: 
